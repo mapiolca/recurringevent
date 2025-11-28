@@ -214,21 +214,55 @@ class RecurringEvent extends SeedObject
     /** @var bool $skip_generate_recurring */
     public $skip_generate_recurring = false;
 
-    /**
-     * RecurringEvent constructor.
-     * @param DoliDB    $db    Database connector
-     */
-    public function __construct($db)
-    {
-        global $conf;
+	/**
+	 * RecurringEvent constructor.
+	 * @param DoliDB    $db    Database connector
+	 */
+	public function __construct($db)
+	{
+		global $conf;
 
-        parent::__construct($db);
+		parent::__construct($db);
 
-        $this->init();
+		$this->init();
 
-        $this->entity = $conf->entity;
-        $this->fk_actioncomm_master = 0;
-    }
+		$this->entity = $conf->entity;
+		$this->fk_actioncomm_master = 0;
+	}
+
+	/**
+	 * Initialize database structure while avoiding multi-statement errors.
+	 *
+	 * @param bool $forceFlags Force flags for parent initializer
+	 * @return int
+	 */
+	public function init_db_by_vars($forceFlags = false)
+	{
+		$result = parent::init_db_by_vars($forceFlags);
+
+		$lastQueryError = (!empty($this->db) && property_exists($this->db, 'lastqueryerror')) ? $this->db->lastqueryerror : '';
+
+		if ($result > 0 || empty($lastQueryError) || strpos($lastQueryError, ';') === false) {
+			return $result;
+		}
+
+		$queries = array_filter(array_map('trim', explode(';', $lastQueryError)));
+		$status = 1;
+
+		foreach ($queries as $sql) {
+			if (empty($sql)) {
+				continue;
+			}
+
+			$resql = $this->db->query($sql);
+			if (!$resql) {
+				$status = -1;
+				break;
+			}
+		}
+
+		return $status;
+	}
 
     /**
      *	Get object and children from database
